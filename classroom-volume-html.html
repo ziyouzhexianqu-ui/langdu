@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课堂音量管理器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        @keyframes ripple {
+            0% { transform: scale(0.5); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+        @keyframes bounce-custom {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        .animate-bounce-custom {
+            animation: bounce-custom 1s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-950 min-h-screen p-4 overflow-auto">
+    <div class="max-w-7xl mx-auto" id="app">
+        <!-- 顶部标题栏 -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <div id="modeIcon" class="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center text-2xl">
+                    ☀️
+                </div>
+                <h1 id="modeTitle" class="text-3xl font-bold text-white">早读模式</h1>
+            </div>
+            <button onclick="toggleAdvanced()" id="advancedBtn" class="px-6 py-2 rounded-full text-white flex items-center gap-2 border bg-white/10 hover:bg-white/20 border-white/30 transition-all">
+                <span>⚙️</span>
+                高级设置
+            </button>
+        </div>
+
+        <!-- 高级设置面板 -->
+        <div id="advancedPanel" class="hidden bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-3xl p-6 border border-purple-500/50 backdrop-blur-lg mb-6">
+            <div class="flex items-center gap-2 mb-6">
+                <span class="text-yellow-400 text-2xl">✨</span>
+                <h2 class="text-2xl font-bold text-white">高级模式设置</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- 目标音量设置 -->
+                <div>
+                    <label class="text-white text-lg mb-2 block">目标音量（分贝）</label>
+                    <input type="range" id="targetVolume" min="10" max="100" value="50" 
+                           class="w-full h-3 bg-white/20 rounded-lg appearance-none cursor-pointer mb-2"
+                           oninput="updateTargetVolume(this.value)">
+                    <div id="targetVolumeDisplay" class="text-center text-purple-300 text-2xl font-bold">50 dB</div>
+                </div>
+
+                <!-- 目标时间设置 -->
+                <div>
+                    <label class="text-white text-lg mb-2 block">目标时长（分钟）</label>
+                    <input type="number" id="targetTime" min="1" max="120" value="5" 
+                           class="w-full px-4 py-3 bg-white/20 text-white text-2xl font-bold rounded-xl border border-white/30 text-center"
+                           oninput="updateTargetTime(this.value)">
+                </div>
+            </div>
+
+            <!-- 动画主题选择 -->
+            <div>
+                <label class="text-white text-lg mb-3 block">选择动画效果</label>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3" id="animationButtons">
+                    <!-- 动画按钮将由JS生成 -->
+                </div>
+            </div>
+
+            <!-- 进度显示 -->
+            <div id="progressBar" class="hidden mt-6 bg-black/30 rounded-2xl p-4">
+                <div class="flex justify-between text-white mb-2">
+                    <span>时间进度: <span id="currentTime">00:00</span> / <span id="totalTime">05:00</span></span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="h-4 bg-white/20 rounded-full overflow-hidden">
+                    <div id="progressBarFill" class="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主显示区域 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <!-- 动画展示区 -->
+            <div class="lg:col-span-2 bg-gradient-to-br from-green-900/30 to-emerald-900/30 rounded-3xl border border-white/10 backdrop-blur-lg overflow-hidden relative h-96">
+                <div id="animationContainer" class="w-full h-full flex items-center justify-center">
+                    <!-- 动画内容 -->
+                </div>
+                
+                <!-- 音量指示器 -->
+                <div class="absolute top-4 right-4 bg-black/50 rounded-2xl p-4 backdrop-blur">
+                    <div class="text-white text-sm mb-1">当前音量</div>
+                    <div id="currentVolume" class="text-4xl font-bold text-cyan-400">0</div>
+                </div>
+
+                <!-- 激励文字 -->
+                <div id="messageBox" class="hidden absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/70 backdrop-blur rounded-2xl px-6 py-3">
+                    <p id="messageText" class="text-white text-xl font-bold text-center"></p>
+                </div>
+            </div>
+
+            <!-- 右侧统计 -->
+            <div class="space-y-4">
+                <div class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-2xl p-6 border border-white/10 backdrop-blur-lg">
+                    <div class="flex items-center gap-2 mb-2 text-emerald-300">
+                        <span>🕐</span>
+                        <span class="text-sm">学习时长</span>
+                    </div>
+                    <div id="timerDisplay" class="text-4xl font-bold text-white">00:00</div>
+                </div>
+
+                <div class="bg-gradient-to-br from-blue-900/50 to-cyan-900/50 rounded-2xl p-6 border border-white/10 backdrop-blur-lg">
+                    <div class="flex items-center gap-2 mb-2 text-cyan-300">
+                        <span>📈</span>
+                        <span class="text-sm">平均音量</span>
+                    </div>
+                    <div id="avgVolumeDisplay" class="text-4xl font-bold text-white">0%</div>
+                </div>
+
+                <div class="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-2xl p-6 border border-white/10 backdrop-blur-lg">
+                    <div class="flex items-center gap-2 mb-2 text-pink-300">
+                        <span>🏆</span>
+                        <span class="text-sm">完成度</span>
+                    </div>
+                    <div id="completionDisplay" class="text-4xl font-bold text-white">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 实时波形 -->
+        <div class="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 rounded-3xl p-6 border border-white/10 backdrop-blur-lg mb-6">
+            <h3 class="text-white text-xl font-bold mb-4">实时音量波形</h3>
+            <div class="h-32 flex items-end gap-1 bg-black/20 rounded-2xl p-4" id="waveform">
+                <!-- 波形柱状图 -->
+            </div>
+        </div>
+
+        <!-- 底部控制按钮 -->
+        <div class="flex gap-4 justify-center flex-wrap">
+            <button onclick="setMode('reading')" id="readingBtn" 
+                    class="px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center gap-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white scale-105 shadow-lg">
+                <span>📖</span>
+                早读模式
+            </button>
+
+            <button onclick="toggleMonitoring()" id="monitorBtn"
+                    class="px-12 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-2xl text-xl font-bold hover:scale-105 transition-transform shadow-lg flex items-center gap-3">
+                <span>🎤</span>
+                <span id="monitorText">开始监测</span>
+            </button>
+
+            <button onclick="setMode('study')" id="studyBtn"
+                    class="px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center gap-3 bg-white/10 text-white hover:bg-white/20">
+                <span>📚</span>
+                自习模式
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let mode = 'reading';
+        let volume = 0;
+        let isActive = false;
+        let threshold = 50;
+        let timer = 0;
+        let targetTime = 300;
+        let targetVolume = 50;
+        let animation = 'tree';
+        let showAdvanced = false;
+        let volumeHistory = [];
+        let realtimeData = Array(30).fill(0);
+        
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let animationFrame = null;
+        let timerInterval = null;
+
+        // 动画配置
+        const animations = [
+            { id: 'tree', name: '🌲 成长树', emoji: '🌳', desc: '声音越大树越茂盛' },
+            { id: 'flower', name: '🌸 花开', emoji: '🌺', desc: '声音越大花越多' },
+            { id: 'star', name: '⭐ 星空', emoji: '✨', desc: '声音越大星星越亮' },
+            { id: 'fire', name: '🔥 火焰', emoji: '🔥', desc: '声音越大火焰越旺' },
+            { id: 'water', name: '💧 水波', emoji: '💧', desc: '声音越大波纹越大' }
+        ];
+
+        // 初始化
+        window.onload = function() {
+            initAnimationButtons();
+            initWaveform();
+            updateAnimation();
+        };
+
+        // 初始化动画按钮
+        function initAnimationButtons() {
+            const container = document.getElementById('animationButtons');
+            animations.forEach(anim => {
+                const btn = document.createElement('button');
+                btn.onclick = () => selectAnimation(anim.id);
+                btn.id = `anim-${anim.id}`;
+                btn.className = `p-4 rounded-2xl transition-all ${
+                    animation === anim.id 
+                        ? 'bg-gradient-to-br from-purple-500 to-pink-500 scale-105 shadow-lg'
+                        : 'bg-white/10 hover:bg-white/20'
+                }`;
+                btn.innerHTML = `
+                    <div class="text-4xl mb-2">${anim.emoji}</div>
+                    <div class="text-white font-bold text-sm">${anim.name}</div>
+                    <div class="text-purple-200 text-xs mt-1">${anim.desc}</div>
+                `;
+                container.appendChild(btn);
+            });
+        }
+
+        // 初始化波形
+        function initWaveform() {
+            const waveform = document.getElementById('waveform');
+            for (let i = 0; i < 30; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'flex-1 rounded-t-lg transition-all duration-100';
+                bar.style.minHeight = '4px';
+                bar.style.height = '0%';
+                waveform.appendChild(bar);
+            }
+        }
+
+        // 切换高级设置
+        function toggleAdvanced() {
+            showAdvanced = !showAdvanced;
+            const panel = document.getElementById('advancedPanel');
+            const btn = document.getElementById('advancedBtn');
+            
+            if (showAdvanced) {
+                panel.classList.remove('hidden');
+                btn.classList.add('bg-purple-500', 'border-purple-400');
+                btn.classList.remove('bg-white/10', 'border-white/30');
+            } else {
+                panel.classList.add('hidden');
+                btn.classList.remove('bg-purple-500', 'border-purple-400');
+                btn.classList.add('bg-white/10', 'border-white/30');
+            }
+        }
+
+        // 更新目标音量
+        function updateTargetVolume(value) {
+            targetVolume = parseInt(value);
+            threshold = targetVolume;
+            document.getElementById('targetVolumeDisplay').textContent = value + ' dB';
+        }
+
+        // 更新目标时间
+        function updateTargetTime(value) {
+            targetTime = parseInt(value) * 60;
+            document.getElementById('totalTime').textContent = formatTime(targetTime);
+        }
+
+        // 选择动画
+        function selectAnimation(animId) {
+            animation = animId;
+            animations.forEach(anim => {
+                const btn = document.getElementById(`anim-${anim.id}`);
+                if (anim.id === animId) {
+                    btn.className = 'p-4 rounded-2xl transition-all bg-gradient-to-br from-purple-500 to-pink-500 scale-105 shadow-lg';
+                } else {
+                    btn.className = 'p-4 rounded-2xl transition-all bg-white/10 hover:bg-white/20';
+                }
+            });
+            updateAnimation();
+        }
+
+        // 切换模式
+        function setMode(newMode) {
+            if (isActive) {
+                stopMonitoring();
+            }
+            
+            mode = newMode;
+            const readingBtn = document.getElementById('readingBtn');
+            const studyBtn = document.getElementById('studyBtn');
+            const modeIcon = document.getElementById('modeIcon');
+            const modeTitle = document.getElementById('modeTitle');
+            
+            if (newMode === 'reading') {
+                readingBtn.className = 'px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center gap-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white scale-105 shadow-lg';
+                studyBtn.className = 'px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center gap-3 bg-white/10 text-white hover:bg-white/20';
+                modeIcon.innerHTML = '☀️';
+                modeIcon.className = 'w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center text-2xl';
+                modeTitle.textContent = '早读模式';
+                threshold = 50;
+            } else {
+                studyBtn.className = 'px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center gap-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white scale-105 shadow-lg';
+                readingBtn.className = 'px-8 py-4 rounded-2xl font-bold text-lg transition-all flex items-center gap-3 bg-white/10 text-white hover:bg-white/20';
+                modeIcon.innerHTML = '📚';
+                modeIcon.className = 'w-12 h-12 bg-blue-400 rounded-full flex items-center justify-center text-2xl';
+                modeTitle.textContent = '自习模式';
+                threshold = 30;
+            }
+        }
+
+        // 开始/停止监测
+        async function toggleMonitoring() {
+            if (!isActive) {
+                await startMonitoring();
+            } else {
+                stopMonitoring();
+            }
+        }
+
+        // 开始监测
+        async function startMonitoring() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                microphone = audioContext.createMediaStreamSource(stream);
+                
+                analyser.smoothingTimeConstant = 0.8;
+                analyser.fftSize = 256;
+                
+                microphone.connect(analyser);
+                
+                isActive = true;
+                timer = 0;
+                volumeHistory = [];
+                
+                document.getElementById('monitorText').textContent = '停止监测';
+                document.getElementById('monitorBtn').className = 'px-12 py-4 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-2xl text-xl font-bold hover:scale-105 transition-transform shadow-lg flex items-center gap-3';
+                document.getElementById('progressBar').classList.remove('hidden');
+                
+                timerInterval = setInterval(() => {
+                    timer++;
+                    updateTimer();
+                }, 1000);
+                
+                detectVolume();
+            } catch (error) {
+                alert('无法访问麦克风，请确保已授权麦克风权限！');
+                console.error(error);
+            }
+        }
+
+        // 停止监测
+        function stopMonitoring() {
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+            if (microphone && microphone.mediaStream) {
+                microphone.mediaStream.getTracks().forEach(track => track.stop());
+            }
+            if (audioContext) {
+                audioContext.close();
+            }
+            
+            if (volumeHistory.length > 0) {
+                const avg = volumeHistory.reduce((a, b) => a + b, 0) / volumeHistory.length;
+                document.getElementById('avgVolumeDisplay').textContent = Math.round(avg) + '%';
+            }
+            
+            isActive = false;
+            volume = 0;
+            realtimeData = Array(30).fill(0);
+            
+            document.getElementById('monitorText').textContent = '开始监测';
+            document.getElementById('monitorBtn').className = 'px-12 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-2xl text-xl font-bold hover:scale-105 transition-transform shadow-lg flex items-center gap-3';
+            document.getElementById('progressBar').classList.add('hidden');
+            document.getElementById('messageBox').classList.add('hidden');
+            
+            updateWaveform();
+            updateAnimation();
+        }
+
+        // 检测音量
+        function detectVolume() {
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            function checkVolume() {
+                if (!isActive) return;
+                
+                analyser.getByteFrequencyData(dataArray);
+                
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    sum += dataArray[i];
+                }
+                const average = sum / bufferLength;
+                const volumePercent = Math.min(100, (average / 128) * 100);
+                
+                volume = volumePercent;
+                volumeHistory.push(volumePercent);
+                realtimeData.shift();
+                realtimeData.push(volumePercent);
+                
+                updateDisplay();
+                updateMessage();
+                updateWaveform();
+                updateAnimation();
+                
+                animationFrame = requestAnimationFrame(checkVolume);
+            }
+            
+            checkVolume();
+        }
+
+        // 更新显示
+        function updateDisplay() {
+            document.getElementById('currentVolume').textContent = Math.round(volume);
+        }
+
+        // 更新计时器
+        function updateTimer() {
+            document.getElementById('timerDisplay').textContent = formatTime(timer);
+            document.getElementById('currentTime').textContent = formatTime(timer);
+            
+            const percent = Math.min(100, (timer / targetTime) * 100);
+            document.getElementById('progressPercent').textContent = Math.round(percent) + '%';
+            document.getElementById('progressBarFill').style.width = percent + '%';
+            document.getElementById('completionDisplay').textContent = Math.round(percent) + '%';
+        }
+
+        // 更新消息
+        function updateMessage() {
+            const messageBox = document.getElementById('messageBox');
+            const messageText = document.getElementById('messageText');
+            let msg = '';
+            
+            if (mode === 'reading') {
+                if (volume >= threshold) {
+                    msg = '👍 很好！声音很棒！';
+                } else if (volume >= threshold * 0.7) {
+                    msg = '💪 不错！可以再大声一些！';
+                } else {
+                    msg = '📢 声音太小了！大声朗读！';
+                }
+            } else {
+                if (volume <= threshold) {
+                    msg = '✨ 很安静！继续保持！';
+                } else if (volume <= threshold * 1.5) {
+                    msg = '⚠️ 有点吵，请小声一些';
+                } else {
+                    msg = '🔴 太吵了！请保持安静！';
+                }
+            }
+            
+            if (msg) {
+                messageBox.classList.remove('hidden');
+                messageText.textContent = msg;
+            } else {
+                messageBox.classList.add('hidden');
+            }
+        }
+
+        // 更新波形
+        function updateWaveform() {
+            const waveform = document.getElementById('waveform');
+            const bars = waveform.children;
+            
+            for (let i = 0; i < bars.length && i < realtimeData.length; i++) {
+                const val = realtimeData[i];
+                bars[i].style.height = val + '%';
+                
+                let color;
+                if (mode === 'reading') {
+                    color = val > threshold ? '#10b981' : '#ef4444';
+                } else {
+                    color = val > threshold ? '#ef4444' : '#10b981';
+                }
+                bars[i].style.backgroundColor = color;
+            }
+        }
+
+        // 更新动画
+        function updateAnimation() {
+            const container = document.getElementById('animationContainer');
+            const scale = Math.max(0.3, volume / 100);
+            
+            switch (animation) {
+                case 'tree':
+                    container.innerHTML = `
+                        <div class="flex flex-col items-center justify-end h-full">
+                            <div style="transform: scale(${0.5 + scale}); transition: all 0.3s;">
+                                <div class="text-8xl mb-2">🌳</div>
+                                <div class="w-16 bg-amber-700 mx-auto rounded-lg" style="height: ${20 + volume * 0.5}px"></div>
+                            </div>
+                            ${volume > threshold ? '<div class="absolute inset-0 flex items-center justify-center pointer-events-none"><div class="text-6xl animate-bounce-custom">🎉</div></div>' : ''}
+                        </div>
+                    `;
+                    break;
+                    
+                case 'flower':
+                    let flowers = '';
+                    for (let i = 0; i < Math.floor(volume / 10); i++) {
+                        flowers += `<div class="absolute text-6xl" style="left: ${20 + i * 10}%; top: ${30 + Math.sin(i) * 20}%; opacity: ${0.5 + Math.random() * 0.5}">🌸</div>`;
+                    }
+                    container.innerHTML = `
+                        <div class="flex items-center justify-center h-full relative">
+                            ${flowers}
+                            <div class="text-9xl" style="transform: scale(${0.5 + scale}); transition: all 0.3s;">🌺</div>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'star':
+                    let stars = '';
+                    for (let i = 0; i < Math.floor(volume / 5); i++) {
+                        stars += `<div class="absolute text-4xl" style="left: ${Math.random() * 90}%; top: ${Math.random() * 90}%; opacity: ${volume / 100}; animation: twinkle ${1 + Math.random()}s infinite;">⭐</div>`;
+                    }
+                    container.innerHTML = `
+                        <div class="flex items-center justify-center h-full relative bg-gradient-to-b from-indigo-950 to-purple-950">
+                            ${stars}
+                            <div class="text-9xl z-10" style="transform: scale(${0.5 + scale}); transition: all 0.3s; filter: brightness(${1 + scale})">✨</div>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'fire':
+                    let flames = '';
+                    if (volume > 70) flames = '<div class="text-6xl">🔥🔥🔥</div>';
+                    else if (volume > 40) flames = '<div class="text-6xl">🔥🔥</div>';
+                    
+                    container.innerHTML = `
+                        <div class="flex flex-col items-center justify-end h-full">
+                            <div style="transform: scale(${0.5 + scale}); transition: all 0.2s; filter: brightness(${1 + scale})">
+                                ${flames}
+                                <div class="text-9xl">🔥</div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'water':
+                    let ripples = '';
+                    for (let i = 0; i < Math.floor(volume / 15); i++) {
+                        ripples += `<div class="absolute border-4 border-blue-400 rounded-full" style="width: ${(i + 1) * 60}px; height: ${(i + 1) * 60}px; opacity: ${1 - i * 0.2}; animation: ripple ${2 + i}s infinite;"></div>`;
+                    }
+                    container.innerHTML = `
+                        <div class="flex items-center justify-center h-full relative">
+                            ${ripples}
+                            <div class="text-9xl z-10" style="transform: scale(${0.5 + scale}); transition: all 0.3s;">💧</div>
+                        </div>
+                    `;
+                    break;
+            }
+        }
+
+        // 格式化时间
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+        }
+    </script>
+</body>
+</html>
